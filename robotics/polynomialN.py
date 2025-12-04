@@ -18,7 +18,7 @@ y_velocity = df['solutionVelocity'].values  # Solution Velocity
 y_angle = df['solutionAngle'].values     # Solution Angle
 
 # Degree of polynomial
-n = 4
+n = 3
 
 # Generate polynomial features
 poly = PolynomialFeatures(degree=n, include_bias=True)

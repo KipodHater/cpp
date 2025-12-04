@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "random": "cpp",
+        "chrono": "cpp",
+        "span": "cpp"
+    }
+}

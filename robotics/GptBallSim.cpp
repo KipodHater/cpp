@@ -4,9 +4,9 @@ using namespace std;
 
 const double h = 1.84; // 2.64 - shooter height
 const double m = 0.26;
-const double dt = 0.001; // s
-const double velocityRobustnessCoefficient = 1;
-const double angleRobustnessCoefficient = 30;
+const double dt = 0.01; // s
+const double velocityRobustnessCoefficient = 2;
+const double angleRobustnessCoefficient = 60;
 const double velocityInaccuracy = 0.02; // m/s
 const double angleInaccuracy = 0.2; // deg
 const double g = 9.81;
@@ -23,10 +23,12 @@ const double distanceStep = 0.15;
 const double minRadialVelocity = -4.0;
 const double maxRadialVelocity = 4.0;
 const double radialVelocityStep = 0.5;
-const double angleStep = 0.5;
+const double minAngle = 1;
+const double maxAngle = 130;
+const double angleStep = 1;
 const double minVelocity = 2.0;
 const double maxVelocity = 17.0;
-const double velocityStep = 0.05;
+const double velocityStep = 0.2;
 
 const double robustnessThreshhold = 100;
 
@@ -137,7 +139,7 @@ int main() {
                 double bestVel = 0, bestAngle = 0;
 
                 for (double velMag = minVelocity; velMag < maxVelocity; velMag += velocityStep) {
-                    for (double velAngle = 1; velAngle < 90; velAngle += angleStep) {
+                    for (double velAngle = minAngle; velAngle < maxAngle; velAngle += angleStep) {
                         auto cur = simulate(velMag, velAngle, radialVel, distance);
                         if (!cur.hit) continue;
 
