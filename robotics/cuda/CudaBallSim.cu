@@ -38,8 +38,9 @@ struct SimRes {
     double maxHeight;
 };
 
-// __global__ 
+__global__ 
 void runSimulationKernel(/* parameters for simulation */) {
++
 
 }
 
@@ -178,20 +179,16 @@ int main() {
                             (simulate(velMag + velocityInaccuracy, velAngle, radialVel, distance).xError -
                              simulate(velMag - velocityInaccuracy, velAngle, radialVel, distance).xError) /
                             (2 * velocityInaccuracy);
-                            // pow(simulate(velMag + velocityInaccuracy, velAngle, radialVel, distance).xError, 2) +
-                            // pow(simulate(velMag - velocityInaccuracy, velAngle, radialVel, distance).xError, 2);
 
                         double angleRobustness =
                             (simulate(velMag, velAngle + angleInaccuracy, radialVel, distance).xError -
                              simulate(velMag, velAngle - angleInaccuracy, radialVel, distance).xError) /
                             (2 * angleInaccuracy);
-                            // pow(simulate(velMag, velAngle + angleInaccuracy, radialVel, distance).xError, 2) +
-                            // pow(simulate(velMag, velAngle - angleInaccuracy, radialVel, distance).xError, 2);
+
                         double robustness =
                             angleRobustnessCoefficient * angleRobustness * angleRobustness +
                             velocityRobustnessCoefficient * velocityRobustness * velocityRobustness +
                             6 * (abs(cur.maxHeight > 0 ? cur.maxHeight : 500)-h);
-                            //  + abs(0.5 * cur.xError);
 
                         if (robustness < minRobustness) {
                             minRobustness = robustness;
