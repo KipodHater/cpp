@@ -2,7 +2,7 @@
 using namespace std;
 typedef long long ll;
 typedef vector<ll> vl;
-const ll INF = 1e10;
+const ll INF = 1e13;
 
 struct LazySeg {
     ll n;
@@ -10,11 +10,12 @@ struct LazySeg {
     vl add;
     LazySeg(ll m) {
         for(n=1; n<m; n<<=1);
-        seg.resize(2*n, -INF);
+        seg.resize(2*n, 0);
         add.resize(2*n, 0);
     }
 
     void push(ll i) {
+
         add[2*i] += add[i];
         add[2*i+1] += add[i];
         seg[2*i] += add[i];
@@ -29,8 +30,9 @@ struct LazySeg {
     void update(ll tl, ll tr, ll val, ll i, ll l, ll r) {
         if(tl >= r || tr < l) return ;
         if(tl <=l && tr >= r-1) {
-            add[i] += val;
+            if(l != r-1) add[i] += val;
             seg[i] += val;
+            return ;
         }
         push(i);
         ll m = (r+l)/2;
@@ -65,18 +67,19 @@ int main() {
     s->update(0, 0, a[0]);
     for(ll i=1; i<n; i++) {
         b[i] = b[i-1] + a[i];
-        s->update(0, i, a[i]);
+        s->update(i, i, b[i]);
     }
     ll c, d, e;
     while(q--) {
         cin >> c >> d >> e;
         if(c == 1) {
             ll f = e - a[d-1];
+            a[d-1] = e;
             s->update(d-1, n-1, f);
         } else {
-            ll res = s->query(d, e);
-            if(res < 0) res = 0;
-            else if(d > 0) res -= s->query(d-1, d-1);
+            ll res = s->query(d-1, e-1);
+            if(d > 1) res -= s->query(d-2, d-2);
+            if(res <= 0) res = 0;
             
             cout << res << "\n";
         }

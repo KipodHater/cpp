@@ -1,33 +1,40 @@
 #include <bits/stdc++.h>
 using namespace std;
 
-const double h = 1.82 - 0.35; // 2.64 - shooter height
+const double h = 1.82 - 0.70; // 2.64 - shooter height
 const double m = 0.21;
-const double dt = 0.05; // s
-const double velocityRobustnessCoefficient = 2;
-const double angleRobustnessCoefficient = 60;
-const double velocityInaccuracy = 0.5; // m/s
-const double angleInaccuracy = 2; // deg
+const double dt = 0.01; // s
+const double velocityRobustnessCoefficient = 5;
+const double angleRobustnessCoefficient = 20;
+const double heightRobustnessCoefficient = 10;
+const double velocityInaccuracy = 0.02; // m/s
+const double angleInaccuracy = 0.1; // deg
 const double g = 9.81;
 const double rho = 1.225;
 const double dragCoefficient = 0.2;
 const double radius = 0.09;
-const double desiredHitAccuracy = 0.05;
+const double desiredHitAccuracy = 0.02;
 const double PI = 3.14159265358979323846;
 const double simulationTime = 6.0;
 const double extraHeightFromHub = 0.2;
-const double minDistance = 0.0;
-const double maxDistance = 8;
-const double distanceStep = 0.15;
-const double minRadialVelocity = -4.0;
-const double maxRadialVelocity = 4.0;
+const double minDistance = 0.6;
+const double maxDistance = 6;
+const double distanceStep = 0.2;
+const double minRadialVelocity = -2.0;
+const double maxRadialVelocity = 2.0;
 const double radialVelocityStep = 0.5;
-const double minAngle = 1;
-const double maxAngle = 130;
-const double angleStep = 1;
+const double minAngle = 50;
+const double maxAngle = 86;
+const double angleStep = 0.1;
 const double minVelocity = 2.0;
-const double maxVelocity = 17.0;
-const double velocityStep = 0.5;
+const double maxVelocity = 25.0;
+const double velocityStep = 0.1;
+const double spinRPM = 3000; // shooter backspin
+const double spinRadPerSec = spinRPM * 2.0 * PI / 60.0;
+const double magnusLiftCoefficient = 0.2; // tunable
+const double hoodSpeedRatio = 0.5;          // hood wheel is half main wheel
+const double wheelToBallVelocityRatio = 0.85;  // slip/compression loss
+const double magnusSlope = 0.6;             // lift slope
 
 const double robustnessThreshhold = 100;
 
@@ -35,16 +42,16 @@ struct SimRes {
     bool hit;
     double xError;
     double maxHeight;
+    double tof;
 };
 
-// Save all found solutions to CSV
 void saveToCSV(const vector<vector<double>>& solutions, const string& filename) {
     ofstream file(filename);
     if (!file.is_open()) {
         cerr << "Failed to open " << filename << " for writing.\n";
         return;
     }
-    file << "distance,radialVelocity,solutionVelocity,solutionAngle,robustness\n";
+    file << "distance,radialVelocity,solutionVelocity,solutionAngle,robustness,tof\n";
     file << fixed << setprecision(5);
     for (const auto& row : solutions) {
         for (size_t i = 0; i < row.size(); i++) {
@@ -58,18 +65,39 @@ void saveToCSV(const vector<vector<double>>& solutions, const string& filename) 
 
 // Detects if the ball passes near the goal
 bool hit(pair<double, double> pos, double d) {
-    return (abs(pos.second - h) < 0.2 && abs(pos.first - d) < desiredHitAccuracy);
+    return (abs(pos.second - h) == 0 && abs(pos.first - d) < desiredHitAccuracy);
 }
 
-// Compute net forces (gravity + drag)
 pair<double, double> computeForces(pair<double, double> vel) {
     pair<double, double> fg = {0, -m * g};
+
     double velMag = hypot(vel.first, vel.second);
-    if (velMag == 0) return fg; // prevent NaN
+    if (velMag == 0) return fg;
+
     pair<double, double> vHat = {vel.first / velMag, vel.second / velMag};
-    double dragMag = rho * velMag * velMag * dragCoefficient * radius * radius * PI / 2;
+
+    // ---- DRAG ----
+    double area = PI * radius * radius;
+    double dragMag = 0.5 * rho * dragCoefficient * area * velMag * velMag;
     pair<double, double> fd = {-dragMag * vHat.first, -dragMag * vHat.second};
-    return {fg.first + fd.first, fg.second + fd.second};
+
+    // ---- MAGNUS ----
+    // For 2D backspin: perpendicular to velocity
+    // Rotate velocity vector 90° CCW: (-vy, vx)
+    pair<double, double> vPerp = {-vel.second / velMag, vel.first / velMag};
+
+    // Spin ratio approximation
+    double spinRatio = radius * spinRadPerSec / velMag;
+
+    double liftMag = 0.5 * rho * area * velMag * velMag * magnusLiftCoefficient * spinRatio;
+
+    pair<double, double> fm = {liftMag * vPerp.first, liftMag * vPerp.second};
+
+    // ---- TOTAL ----
+    return {
+        fg.first + fd.first + fm.first,
+        fg.second + fd.second + fm.second
+    };
 }
 
 // Run a single trajectory simulation
@@ -87,10 +115,11 @@ SimRes simulate(double velMag, double velAngle, double radialVel, double d) {
         lastPos = pos;
         auto a = computeForces(vel);
         a = {a.first / m, a.second / m};
+
+        vel.first += a.first * dt;
+        vel.second += a.second * dt;
         pos.first += vel.first * dt;
         pos.second += vel.second * dt;
-            vel.first += a.first * dt;
-        vel.second += a.second * dt;
 
         maxHeight = max(maxHeight, pos.second);
 
@@ -101,10 +130,10 @@ SimRes simulate(double velMag, double velAngle, double radialVel, double d) {
             double crossX = (lastPos.first * k + pos.first * l) / (l+k);
             xError = crossX - d;
             if(hit({crossX, h}, d) && maxHeight >= h + extraHeightFromHub) {
-                return {true, xError, maxHeight};
+                return {true, xError, maxHeight, t};
             } 
             else {
-                return {false, xError, maxHeight};
+                return {false, xError, maxHeight, t};
             }
         }
 
@@ -117,7 +146,7 @@ SimRes simulate(double velMag, double velAngle, double radialVel, double d) {
         //     }
         // }
     }
-    return {false, xError, maxHeight};
+    return {false, xError, maxHeight, simulationTime};
 }
 
 int main() {
@@ -158,8 +187,8 @@ int main() {
                         double robustness =
                             angleRobustnessCoefficient * angleRobustness * angleRobustness +
                             velocityRobustnessCoefficient * velocityRobustness * velocityRobustness +
-                            6 * (abs(cur.maxHeight > 0 ? cur.maxHeight : 500)-h);
-                            //  + abs(0.5 * cur.xError);
+                            heightRobustnessCoefficient * (abs((cur.maxHeight > 0 ? cur.maxHeight : 500) - h)) +
+                            1000 * abs(cur.xError);
 
                         if (robustness < minRobustness) {
                             minRobustness = robustness;
@@ -171,7 +200,7 @@ int main() {
                 }
 
                 if (best.hit) {
-                    localSolutions.push_back({distance, radialVel, bestVel, bestAngle, minRobustness});
+                    localSolutions.push_back({distance, radialVel, bestVel, bestAngle, minRobustness, best.tof});
                 }
             }
         }
@@ -182,5 +211,5 @@ int main() {
         }
     }
 
-    saveToCSV(solutions, "shootingSolutions2.csv");
+    saveToCSV(solutions, "shootingSolutions.csv");
 }

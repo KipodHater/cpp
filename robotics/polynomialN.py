@@ -16,6 +16,7 @@ df = pd.read_csv(csv_path)
 X = df[['distance','radialVelocity']].values  # Distance, Radial Velocity
 y_velocity = df['solutionVelocity'].values  # Solution Velocity
 y_angle = df['solutionAngle'].values     # Solution Angle
+y_tof = df['tof'].values                 # Time of Flight (new)
 
 # Degree of polynomial
 n = 3
@@ -32,6 +33,10 @@ model_velocity.fit(X_poly, y_velocity)
 model_angle = LinearRegression()
 model_angle.fit(X_poly, y_angle)
 
+# Fit polynomial for ToF
+model_tof = LinearRegression()
+model_tof.fit(X_poly, y_tof)
+
 # Get feature names
 terms = poly.get_feature_names_out(['x','y'])
 
@@ -44,6 +49,7 @@ def print_polynomial(model, terms, intercept_name="f(x,y)"):
         equation += f" + ({c:.4f})*{t}"
     print(f"{intercept_name} = {equation}\n")
 
-# Print both polynomials
+# Print all polynomials
 print_polynomial(model_velocity, terms, "Solution Velocity")
 print_polynomial(model_angle, terms, "Solution Angle")
+print_polynomial(model_tof, terms, "Time of Flight")
