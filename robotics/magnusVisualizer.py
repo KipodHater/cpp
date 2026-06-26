@@ -64,7 +64,7 @@ def simulate_shot(main_wheel_speed, angle_deg, goal_distance, radial_velocity=0.
     v_hood = hood_speed_ratio * v_main
 
     # Ball exit velocity
-    velocity = v_main * wheel_to_ball_ratio
+    velocity = ((v_main + v_hood) / 2.0) * wheel_to_ball_ratio
 
     # Ball spin (rad/s)
     ball_spin = (v_main - v_hood) / (2.0 * radius)
@@ -157,7 +157,7 @@ def visualize_shot(main_wheel_speed, angle, goal_distance):
 # --------------------
 if __name__ == "__main__":
     visualize_shot(
-        main_wheel_speed=5.90000,
-        angle=85.5,
-        goal_distance=0.3
+        main_wheel_speed=20.00000,
+        angle=60,
+        goal_distance=13.0
         )

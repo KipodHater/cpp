@@ -24,26 +24,26 @@ const double magnusSlope = 0.6;                 // lift slope coefficient
 // Search ranges
 const double minDistance = 0.3;
 const double maxDistance = 6.3;
-const double distanceStep = 0.5;
+const double distanceStep = 0.25;
 
 const double minRadialVelocity = -2.5;
 const double maxRadialVelocity = 2.5;
 const double radialVelocityStep = 0.5;
 
-const double minAngle = 60;
-const double maxAngle = 86;
+const double minAngle = 52;
+const double maxAngle = 84;
 const double angleStep = 0.5;
 
 const double minMainWheelSpeed = 2.0;   // m/s
-const double maxMainWheelSpeed = 20.0;
-const double mainWheelSpeedStep = 0.1;
+const double maxMainWheelSpeed = 25.0;
+const double mainWheelSpeedStep = 0.05;
 
-const double velocityInaccuracy = 0.05;   // m/s
+const double velocityInaccuracy = 0.2;   // m/s
 const double angleInaccuracy = 0.1;      // deg
 
-const double velocityRobustnessCoefficient = 15;
-const double angleRobustnessCoefficient = 10;
-const double heightRobustnessCoefficient = 13;
+const double velocityRobustnessCoefficient = 10;
+const double angleRobustnessCoefficient = 2;
+const double heightRobustnessCoefficient = 0.5;
 
 // ---------------------------------------------------
 
@@ -124,12 +124,21 @@ SimRes simulate(double mainWheelSpeed,
     double vHood = hoodSpeedRatio * vMain;
 
     // Ball exit velocity
-    double velMag = vMain * wheelToBallVelocityRatio;
+    // Uses average wheel speed instead of only the main wheel
+    double velMag =
+        ((vMain + vHood) / 2.0) *
+        wheelToBallVelocityRatio;
 
     // Ball spin (rad/s)
-    double ballSpin = (vMain - vHood) / (2.0 * radius);
+    // Derived from:
+    // V + ωR = vMain
+    // V - ωR = vHood
+    double ballSpin =
+        (vMain - vHood) /
+        (2.0 * radius);
 
     pair<double,double> pos = {0, 0};
+
     pair<double,double> vel = {
         velMag * cos(hoodAngle * PI / 180.0) + radialVel,
         velMag * sin(hoodAngle * PI / 180.0)
@@ -144,7 +153,11 @@ SimRes simulate(double mainWheelSpeed,
         lastPos = pos;
 
         auto f = computeForces(vel, ballSpin);
-        pair<double,double> a = {f.first / m, f.second / m};
+
+        pair<double,double> a = {
+            f.first / m,
+            f.second / m
+        };
 
         vel.first += a.first * dt;
         vel.second += a.second * dt;
@@ -154,24 +167,48 @@ SimRes simulate(double mainWheelSpeed,
 
         maxHeight = max(maxHeight, pos.second);
 
-        // crossing goal height downward
-        if (lastPos.second >= h && pos.second <= h && vel.second < 0) {
+        if (lastPos.second >= h &&
+            pos.second <= h &&
+            vel.second < 0)
+        {
             double l = lastPos.second - h;
             double k = h - pos.second;
-            double crossX = (lastPos.first * k + pos.first * l) / (l + k);
+
+            double crossX =
+                (lastPos.first * k +
+                 pos.first * l) /
+                (l + k);
+
             xError = crossX - d;
 
-            bool isHit = abs(xError) < desiredHitAccuracy
-                         && maxHeight >= h + extraHeightFromHub;
+            bool isHit =
+                abs(xError) < desiredHitAccuracy &&
+                maxHeight >= h + extraHeightFromHub;
 
-            return {isHit, xError, maxHeight, t};
+            return {
+                isHit,
+                xError,
+                maxHeight,
+                t
+            };
         }
 
-        if (pos.second < -1)
-            return {false, xError, maxHeight, t};
+        if (pos.second < -1) {
+            return {
+                false,
+                xError,
+                maxHeight,
+                t
+            };
+        }
     }
 
-    return {false, xError, maxHeight, simulationTime};
+    return {
+        false,
+        xError,
+        maxHeight,
+        simulationTime
+    };
 }
 
 // ---------------------------------------------------

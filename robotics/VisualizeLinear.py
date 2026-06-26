@@ -1,3 +1,5 @@
+import os
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -13,9 +15,9 @@ from scipy.interpolate import griddata
 
 # Or if pasting raw string:
 from io import StringIO
-
-csv_data = """shootingSolutions2.csv"""
-df = pd.read_csv("shootingSolutions2.csv", encoding="utf-8-sig")
+print(os.getcwd())
+csv_data = """robotics/shootingSolutions2.csv"""
+df = pd.read_csv("robotics/shootingSolutions2.csv", encoding="utf-8-sig")
 df.columns = df.columns.str.strip()
 print(df.columns)
 

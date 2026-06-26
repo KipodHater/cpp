@@ -3,7 +3,7 @@ using namespace std;
 
 // -------------------- CONSTANTS --------------------
 
-const double h = 1.82 - 0.66;   // goal height relative to shooter
+const double h = 0.66 - 0.66;   // goal height relative to shooter
 const double m = 0.21;         // ball mass (kg)
 const double dt = 0.01;
 const double g = 9.81;
@@ -14,36 +14,36 @@ const double PI = 3.14159265358979323846;
 
 const double simulationTime = 6.0;
 const double desiredHitAccuracy = 0.05;
-const double extraHeightFromHub = 0.2;
+const double extraHeightFromHub = 0.3;
 
 // Shooter model
 const double hoodSpeedRatio = 0.5;              // hood wheel = 0.5 * main
-const double wheelToBallVelocityRatio = 0.9;   // slip/compression loss
+const double wheelToBallVelocityRatio = 0.85;   // slip/compression loss
 const double magnusSlope = 0.6;                 // lift slope coefficient
 
 // Search ranges
-const double minDistance = 0.3;
-const double maxDistance = 6.3;
+const double minDistance = 1.0;
+const double maxDistance = 13.0;
 const double distanceStep = 0.5;
 
-const double minRadialVelocity = -2.5;
-const double maxRadialVelocity = 2.5;
-const double radialVelocityStep = 0.5;
+// const double minRadialVelocity = 0.0;
+// const double maxRadialVelocity = 0.0;
+// const double radialVelocityStep = 0.0;
 
-const double minAngle = 60;
+const double minAngle = 52;
 const double maxAngle = 86;
 const double angleStep = 0.5;
 
 const double minMainWheelSpeed = 2.0;   // m/s
-const double maxMainWheelSpeed = 20.0;
-const double mainWheelSpeedStep = 0.1;
+const double maxMainWheelSpeed = 25.0;
+const double mainWheelSpeedStep = 0.05;
 
-const double velocityInaccuracy = 0.05;   // m/s
+const double velocityInaccuracy = 0.2;   // m/s
 const double angleInaccuracy = 0.1;      // deg
 
-const double velocityRobustnessCoefficient = 15;
-const double angleRobustnessCoefficient = 10;
-const double heightRobustnessCoefficient = 13;
+const double velocityRobustnessCoefficient = 10;
+const double angleRobustnessCoefficient = 2;
+const double heightRobustnessCoefficient = 10.0;
 
 // ---------------------------------------------------
 
@@ -124,12 +124,21 @@ SimRes simulate(double mainWheelSpeed,
     double vHood = hoodSpeedRatio * vMain;
 
     // Ball exit velocity
-    double velMag = vMain * wheelToBallVelocityRatio;
+    // Uses average wheel speed instead of only the main wheel
+    double velMag =
+        ((vMain + vHood) / 2.0) *
+        wheelToBallVelocityRatio;
 
     // Ball spin (rad/s)
-    double ballSpin = (vMain - vHood) / (2.0 * radius);
+    // Derived from:
+    // V + ωR = vMain
+    // V - ωR = vHood
+    double ballSpin =
+        (vMain - vHood) /
+        (2.0 * radius);
 
     pair<double,double> pos = {0, 0};
+
     pair<double,double> vel = {
         velMag * cos(hoodAngle * PI / 180.0) + radialVel,
         velMag * sin(hoodAngle * PI / 180.0)
@@ -144,7 +153,11 @@ SimRes simulate(double mainWheelSpeed,
         lastPos = pos;
 
         auto f = computeForces(vel, ballSpin);
-        pair<double,double> a = {f.first / m, f.second / m};
+
+        pair<double,double> a = {
+            f.first / m,
+            f.second / m
+        };
 
         vel.first += a.first * dt;
         vel.second += a.second * dt;
@@ -154,92 +167,113 @@ SimRes simulate(double mainWheelSpeed,
 
         maxHeight = max(maxHeight, pos.second);
 
-        // crossing goal height downward
-        if (lastPos.second >= h && pos.second <= h && vel.second < 0) {
+        if (lastPos.second >= h &&
+            pos.second <= h &&
+            vel.second < 0)
+        {
             double l = lastPos.second - h;
             double k = h - pos.second;
-            double crossX = (lastPos.first * k + pos.first * l) / (l + k);
+
+            double crossX =
+                (lastPos.first * k +
+                 pos.first * l) /
+                (l + k);
+
             xError = crossX - d;
 
-            bool isHit = abs(xError) < desiredHitAccuracy
-                         && maxHeight >= h + extraHeightFromHub;
+            bool isHit =
+                abs(xError) < desiredHitAccuracy &&
+                maxHeight >= h + extraHeightFromHub;
 
-            return {isHit, xError, maxHeight, t};
+            return {
+                isHit,
+                xError,
+                maxHeight,
+                t
+            };
         }
 
-        if (pos.second < -1)
-            return {false, xError, maxHeight, t};
+        if (pos.second < -1) {
+            return {
+                false,
+                xError,
+                maxHeight,
+                t
+            };
+        }
     }
 
-    return {false, xError, maxHeight, simulationTime};
+    return {
+        false,
+        xError,
+        maxHeight,
+        simulationTime
+    };
 }
 
 // ---------------------------------------------------
 
 int main() {
-
     vector<vector<double>> solutions;
 
     for (double distance = minDistance;
          distance <= maxDistance;
          distance += distanceStep)
     {
-        for (double radialVel = minRadialVelocity;
-             radialVel <= maxRadialVelocity;
-             radialVel += radialVelocityStep)
+        constexpr double radialVel = 0.0;
+
+        double bestRobustness = 1e9;
+        SimRes best{false, 0, 0, 0};
+        double bestSpeed = 0;
+        double bestAngle = 0;
+
+        for (double mainSpeed = minMainWheelSpeed;
+             mainSpeed <= maxMainWheelSpeed;
+             mainSpeed += mainWheelSpeedStep)
         {
-            double bestRobustness = 1e9;
-            SimRes best = {false, 0, 0, 0};
-            double bestSpeed = 0;
-            double bestAngle = 0;
-
-            for (double mainSpeed = minMainWheelSpeed;
-                 mainSpeed <= maxMainWheelSpeed;
-                 mainSpeed += mainWheelSpeedStep)
+            for (double angle = minAngle;
+                 angle <= maxAngle;
+                 angle += angleStep)
             {
-                for (double angle = minAngle;
-                     angle <= maxAngle;
-                     angle += angleStep)
-                {
-                    auto cur = simulate(mainSpeed, angle, radialVel, distance);
-                    if (!cur.hit) continue;
+                auto cur = simulate(mainSpeed, angle, radialVel, distance);
+                if (!cur.hit)
+                    continue;
 
-                    double velRob =
-                        (simulate(mainSpeed + velocityInaccuracy, angle, radialVel, distance).xError -
-                         simulate(mainSpeed - velocityInaccuracy, angle, radialVel, distance).xError)
-                        / (2 * velocityInaccuracy);
+                double velRob =
+                    (simulate(mainSpeed + velocityInaccuracy, angle, radialVel, distance).xError -
+                     simulate(mainSpeed - velocityInaccuracy, angle, radialVel, distance).xError)
+                    / (2 * velocityInaccuracy);
 
-                    double angRob =
-                        (simulate(mainSpeed, angle + angleInaccuracy, radialVel, distance).xError -
-                         simulate(mainSpeed, angle - angleInaccuracy, radialVel, distance).xError)
-                        / (2 * angleInaccuracy);
+                double angRob =
+                    (simulate(mainSpeed, angle + angleInaccuracy, radialVel, distance).xError -
+                     simulate(mainSpeed, angle - angleInaccuracy, radialVel, distance).xError)
+                    / (2 * angleInaccuracy);
 
-                    double robustness =
-                        velocityRobustnessCoefficient * velRob * velRob +
-                        angleRobustnessCoefficient * angRob * angRob +
-                        heightRobustnessCoefficient * abs(cur.maxHeight - h);
+                double robustness =
+                    velocityRobustnessCoefficient * velRob * velRob +
+                    angleRobustnessCoefficient * angRob * angRob +
+                    heightRobustnessCoefficient * abs(cur.maxHeight - h);
 
-                    if (robustness < bestRobustness) {
-                        bestRobustness = robustness;
-                        best = cur;
-                        bestSpeed = mainSpeed;
-                        bestAngle = angle;
-                    }
+                if (robustness < bestRobustness) {
+                    bestRobustness = robustness;
+                    best = cur;
+                    bestSpeed = mainSpeed;
+                    bestAngle = angle;
                 }
             }
+        }
 
-            if (best.hit) {
-                solutions.push_back({
-                    distance,
-                    radialVel,
-                    bestSpeed,
-                    bestAngle,
-                    bestRobustness,
-                    best.tof
-                });
-            }
+        if (best.hit) {
+            solutions.push_back({
+                distance,
+                0.0,
+                bestSpeed,
+                bestAngle,
+                bestRobustness,
+                best.tof
+            });
         }
     }
 
-    saveToCSV(solutions, "shootingSolutions2.csv");
+    saveToCSV(solutions, "fetchingSolutions.csv");
 }
